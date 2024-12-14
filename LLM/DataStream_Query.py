@@ -38,7 +38,3 @@ def timestream_response_to_dataframe(response):
     
     return df
 
-response = query_timestream_data()
-df = timestream_response_to_dataframe(response)
-st.write(df)
-
