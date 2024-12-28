@@ -1,0 +1,7 @@
+node_modules/
+# Logs
+*.log
+
+# OS / editor folders
+.DS_Store
+.vscode/

@@ -1,13 +1,17 @@
-const AWS = require('aws-sdk');
+// s3_testBucket.js (using v3)
+import { S3Client, ListBucketsCommand } from '@aws-sdk/client-s3';
 
-// Option A: Let the SDK automatically pick up environment variables
-// If AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION are set,
-// then AWS SDK will automatically use them. You don't need extra config.
+async function listS3Buckets() {
+  // Create an S3Client. Region can come from environment variables if set.
+  const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 
-// Option B: Explicitly configure region if needed
-AWS.config.update({
-  region: process.env.AWS_REGION
-});
+  try {
+    // Send the command to the S3 client
+    const data = await s3Client.send(new ListBucketsCommand({}));
+    console.log('Buckets:', data.Buckets);
+  } catch (error) {
+    console.error('Error listing buckets:', error);
+  }
+}
 
-// Now you can use the AWS SDK as usual, e.g.:
-const s3 = new AWS.S3();
+listS3Buckets();

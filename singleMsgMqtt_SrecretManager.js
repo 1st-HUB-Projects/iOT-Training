@@ -1,27 +1,36 @@
-const awsIot = require('aws-iot-device-sdk');
-const AWS = require('aws-sdk');
+// singleMsgMqtt_SecretManager.js
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import awsIot from 'aws-iot-device-sdk';
+
+
 
 // AWS Region for Secrets Manager
-const region = 'us-east-1';
+const region = process.env.AWS_REGION;
+
 
 // Your AWS IoT endpoint (replace if needed)
-const ioT_End_Point = 'a5b18sm2w1aeo-ats.iot.us-east-1.amazonaws.com';
+const ioT_End_Point = process.env.IOT_END_POINT //'a5b18sm2w1aeo-ats.iot.us-east-1.amazonaws.com';
 
 // Name or ARN of your secret in AWS Secrets Manager
 const secretId = 'iOTCertificates';
 
+
+const secretsClient = new SecretsManagerClient({ region });
 // Configure AWS SDK (make sure your environment has credentials to read Secrets Manager)
-AWS.config.update({ region });
-const secretsManager = new AWS.SecretsManager();
+
 
 /**
  * Fetch IoT certificates from Secrets Manager
  */
 async function getIoTCertificates() {
-  const data = await secretsManager.getSecretValue({ SecretId: secretId }).promise();
+  // 1. Retrieve the secret
+  const data = await secretsClient.send(
+    new GetSecretValueCommand({ SecretId: secretId })
+  );
+
+  // 2. Parse the JSON from data.SecretString
   const { iotPrivateKey, iotDeviceCert, iotRootCA } = JSON.parse(data.SecretString);
 
-  // Return them in a format aws-iot-device-sdk expects
   return {
     privateKey: iotPrivateKey,
     clientCert: iotDeviceCert,
@@ -29,25 +38,29 @@ async function getIoTCertificates() {
   };
 }
 
-(async () => {
+/**
+ * Main function to connect to AWS IoT using in-memory certs
+ * and publish a single message to the 'iot/sub' topic.
+ */
+async function main() {
   try {
     // 1. Fetch certificates from Secrets Manager
     const { privateKey, clientCert, caCert } = await getIoTCertificates();
 
-    // 2. Create the AWS IoT device with in-memory certificates
+    // 2. Create the AWS IoT device connection (from aws-iot-device-sdk)
+    //    We pass raw PEM strings instead of file paths.
     const device = awsIot.device({
-      privateKey,       // Private key PEM content
-      clientCert,       // Device certificate PEM content
-      caCert,           // Root CA PEM content
+      privateKey,
+      clientCert,
+      caCert,
       clientId: 'iOTestID',
-      host: ioT_End_Point,
+      host: 'a5b18sm2w1aeo-ats.iot.us-east-1.amazonaws.com' // Replace if your endpoint differs
     });
 
-    // 3. Set up event handlers
+    // 3. When connected, publish a random sensor reading
     device.on('connect', function() {
       console.log('Connected to AWS IoT Core');
-
-      // Prepare a single message to publish
+      
       const payload = JSON.stringify({
         temperature: (Math.random() * 10 + 20).toFixed(2), // Random temperature
         pressure: (Math.random() * 200 + 900).toFixed(2),  // Random pressure
@@ -60,10 +73,13 @@ async function getIoTCertificates() {
     });
 
     device.on('error', function(error) {
-      console.error('Error:', error);
+      console.error('IoT Device Error:', error);
     });
-
-  } catch (error) {
-    console.error('Error setting up IoT device:', error);
+    
+  } catch (err) {
+    console.error('Error in main():', err);
   }
-})();
+}
+
+// Run the main function
+main();
